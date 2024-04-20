@@ -1,0 +1,162 @@
+% Actividad práctica n 1.
+% Sistema RLC
+% Item 1
+clc, clear all, close all
+s = tf('s'); 
+% Parámetros de la señal cuadrada
+amplitud = 12; % Amplitud de +/-12V
+periodo = 0.1; % Periodo de 0.1 s
+Fs = 1000000; % Frecuencia de muestreo (Hz)
+delay = 0.01; % Retardo inicial de 0.01 segundos
+%Vectores para entrada escalon:
+Ti = 1/Fs;
+
+t0_v = 0:Ti:delay; % Vector de tiempo desde 0v
+%ira desde 0 hasta delay con un muestreo de Ti  
+t1_v = delay:Ti:periodo/2; %varia cada 1ms despues del retardo
+% en este caso ira desde el delay hasta el delay + periodo con muestreo Ti
+t2_v = t1_v(end):Ti:t1_v(end)+periodo/2;
+% en este caso ira desde el final del anterior 
+% hasta el final del anterior + periodo con muestreo Ti
+t3_v = t2_v(end):Ti:t2_v(end)+periodo/2;
+
+t4_v = t3_v(end):Ti:t3_v(end)+periodo/2;
+
+time = [t0_v t1_v t2_v t3_v t4_v]; %Vector para el tiempo, multiplico por +/-12 para tener el escalon deseado despues del retardo
+
+%Vector para Escalon:
+
+u1 = 0 * zeros(1,length(t0_v)); % Da el delay inicial
+
+u2 = 12*ones(1, length(t1_v)); % Entrada +12V
+
+u3 = -12*ones(1, length(t2_v)); % Entrada -12V
+u4 = 12*ones(1, length(t4_v)); 
+u = [u1 u2 u3 u4 u3 ]; %Forma un vector variable de +/-12V
+% Parámetros del sistema RLC
+% Leer datos de las curvas extraidos del Excel
+data = xlsread('Curvas_Medidas_RLC_2024');
+tiempo = data(:, 1);
+tension = data(:, 3);
+corriente = data(:,2);
+ii=1;
+% Tiempos elegidos para Chen
+t1 = 0.0217;
+delay = 0.01;
+% Encontrar el índice correspondiente al tiempo deseado
+indice_tiempo = find(tiempo == t1);
+isempty(indice_tiempo)
+% Obtener el valor de la tensión en el tiempo deseado
+y1 = tension(indice_tiempo);
+t2 = t1*2-delay;
+% Encontrar el índice correspondiente al tiempo deseado
+indice_tiempo = find(tiempo == t2);
+isempty(indice_tiempo)
+% Obtener el valor de la tensión en el tiempo deseado
+y2 = tension(indice_tiempo);
+t3 = t1*3-2*delay;
+% Encontrar el índice correspondiente al tiempo deseado
+indice_tiempo = find(tiempo == t3);
+isempty(indice_tiempo)
+% Obtener el valor de la tensión en el tiempo deseado
+y3 = tension(indice_tiempo);
+K=12;
+k1=y1/K-1;%Afecto el valor del Escalon
+k2=y2/K-1;
+k3=y3/K-1;
+be=4*k1^3*k3-3*k1^2*k2^2-4*k2^3+k3^2+6*k1*k2*k3;
+alfa1=(k1*k2+k3-sqrt(be))/(2*(k1^2+k2));
+alfa2=(k1*k2+k3+sqrt(be))/(2*(k1^2+k2));
+beta=(k1+alfa2)/(alfa1-alfa2);
+%(2*k1^3+3*k1*k2+k3-sqrt(be))/(sqrt(be));
+% alfa2= (k3 + k1*k2 + (4*k1^3*k3 - 3*k1^2*k2^2 + 6*k1*k2*k3 - 4*k2^3 + k3^2)^(1/2))/(2*(k1^2 + k2));
+% alfa1= (k3 + k1*k2 - (4*k1^3*k3 - 3*k1^2*k2^2 + 6*k1*k2*k3 - 4*k2^3 + k3^2)^(1/2))/(2*(k1^2 + k2));
+T1_ang=-t1/log(alfa1);
+T2_ang=-t1/log(alfa2);
+T3_ang=beta*(T1_ang-T2_ang)+T1_ang;
+T1(ii)=T1_ang;
+T2(ii+1)=T2_ang;
+T3(ii+2)=T3_ang;
+T3_ang=sum(T3/length(T3));
+T2_ang=sum(T2/length(T2));
+T1_ang=sum(T1/length(T1));
+sys_G_ang = tf([T3_ang 1],conv([T1_ang 1],[T2_ang 1]));
+% Hasta este punto se pudo obtener la ecuacion 
+% El ejercicio pide observar la respuesta de la funcion de transferencia en
+% los primeros 0,05s, esto se puede hacer con un escalon que dure ese
+% tiempo.
+% El valor resistivo se observa en el primer pico de corriente teniendo en
+% cuenta las condiciones iniciales nulas. La corriente maxima fue de 0,035883574
+% por lo que la reistencia sera el valor de la tension dividido la
+% corriente maxima.
+% La funcion de transferencia aproximada es: 
+%[-3.8186e-06*s+1]/(s^2*[2.122e-06]+[0.00324]*s+ 1)
+% Si se desprecia el 0 = 1/(s^2*LC+RC*s+ 1)
+Imax = 0.035883574;
+[num, den] = tfdata(sys_G_ang, 'v');
+
+% Obtener los coeficientes de la función de transferencia
+
+a2 = den(2);
+a1 = den(3);
+a0 = den(1);
+
+% Calcular los valores de R, L y C
+R = 12 / Imax;
+C = a2 / R;
+L = a0 / C;
+
+% Entonces puedo armar las matrices de los valores que calcule:
+A = [-R/L, -1/L; 1/C, 0];
+B = [1/L ; 0];
+x = [0 ; 0]; % condiciones iniciales nulas
+Vc_experimental = zeros(1, length(time));
+I_experimental = zeros(1, length(time));
+% Se procede de igual manera que para el item 1 para calcular las respuesta
+% a la onda de exitacion +/-12V.
+
+for ii = 1:length(time)
+    
+    I_experimental(ii) = x(1);
+    Vc_experimental(ii) = x(2);
+    
+    xp = A*x + B.*u(ii);
+    
+    x = x + xp.*Ti;
+    
+end
+%Graficos de tensión corriente y entrada
+figure('Position', [17, 0, 1500, 780]); %Para ubicar los graficos en la pantalla
+%Entrada
+subplot(3,1,1);
+plot(time, u);
+grid on;
+title('Entrada, u(t)');
+ylim([-13,13]);
+xlim([0,2*periodo]);
+ylabel('V[V]');
+xlabel('t[ms]');
+%Tension del capacitor
+subplot(3,1,2);
+plot(tiempo, tension);
+grid on;
+title('Tension en el Capacitor');
+ylim([-13,13]);
+xlim([0,2*periodo]);
+ylabel('Vc[V]');
+xlabel('t[ms]');
+hold on 
+plot(time, Vc_experimental);
+hold off
+%Corriente
+subplot(3,1,3);
+plot(tiempo, corriente);
+grid on;
+title('Corriente');
+ylim([-0.1,0.1]);
+xlim([0,2*periodo]);
+ylabel('I[A]');
+xlabel('t[ms]');
+hold on
+plot(time, I_experimental);
+hold off
