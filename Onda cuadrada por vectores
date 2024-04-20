@@ -1,0 +1,32 @@
+%Vectores para entrada escalon:
+clc, clear all, close all;
+delay= 1e5*1e-9; %Retardo incial se puede variar segun necesite 
+periodo = 3^(-3);
+Ti = 0.00001; %Puedo variar segun sea necesario 
+
+t0_v = 0:Ti:delay; % Vector de tiempo desde 0v
+%ira desde 0 hasta delay con un muestreo de Ti  
+t1_v = delay:Ti:periodo+delay; %varia cada 1ms despues del retardo
+% en este caso ira desde el delay hasta el delay + periodo con muestreo Ti
+t2_v = t1_v(end):Ti:t1_v(end)+periodo;
+% en este caso ira desde el final del anterior 
+% hasta el final del anterior + periodo con muestreo Ti
+t3_v = t2_v(end):Ti:t2_v(end)+periodo;
+% en este caso ira desde el final del anterior 
+% hasta el final del anterior + periodo con muestreo Ti
+t4_v = t3_v(end):Ti:t3_v(end)+periodo;
+% en este caso ira desde el final del anterior 
+% hasta el final del anterior + periodo con muestreo Ti
+time = [t0_v t1_v t2_v t3_v t4_v]; %Vector para el tiempo, 
+% En el siguiente paso multiplico por +/-12 para tener el escalon deseado despues del retardo
+%Vector para Escalon:
+
+u1 = 0 * zeros(1,length(t0_v)); % Da el delay inicial
+
+u2 = 12*ones(1, length(t1_v)); % Entrada +12V
+
+u3 = -12*ones(1, length(t2_v)); % Entrada -12V
+
+u = [u1 u2 u3 u2 u3]; %Forma un vector variable de +/-12V
+
+plot(time,u)%Muestro el valor de la onda cuadrada. Esta formada por los dos vectores. El de tiempo y el de valor en tension 
