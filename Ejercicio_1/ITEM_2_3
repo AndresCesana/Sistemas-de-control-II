@@ -6,7 +6,7 @@ s = tf('s');
 % Parámetros de la señal cuadrada
 amplitud = 12; % Amplitud de +/-12V
 periodo = 0.1; % Periodo de 0.1 s
-Fs = 1000000; % Frecuencia de muestreo (Hz)
+Fs = 2800; % Frecuencia de muestreo (Hz) segun el calculo de mas abajo 2800
 delay = 0.01; % Retardo inicial de 0.01 segundos
 %Vectores para entrada escalon:
 Ti = 1/Fs;
@@ -41,7 +41,9 @@ tension = data(:, 3);
 corriente = data(:,2);
 ii=1;
 % Tiempos elegidos para Chen
-t1 = 0.0217;
+%t1 en 0.0193 mejor aproximacion hecha.
+%si t es mayor se vuelven los argumentos imaginarios.
+t1 =  0.0193;
 delay = 0.01;
 % Encontrar el índice correspondiente al tiempo deseado
 indice_tiempo = find(tiempo == t1);
@@ -94,18 +96,31 @@ sys_G_ang = tf([T3_ang 1],conv([T1_ang 1],[T2_ang 1]));
 % Si se desprecia el 0 = 1/(s^2*LC+RC*s+ 1)
 Imax = 0.035883574;
 [num, den] = tfdata(sys_G_ang, 'v');
-
+[polo] = pole(sys_G_ang);
+% polo1= polo(1) ;%Dinamica mas rapida
+% polo2= polo(2); %Dinamica mas lenta
+% Ti= log(0.95)/polo2; se conoce Ti para la frecuencia de muestreo 
+% % Obtener los coeficientes de la función de transferencia suponiendo el
+% cero inexistente el tiempo debe ser de 0.0217
+ a0 = num(1)
+ a2 = den(2);
+ a1 = den(3);
+ a0 = den(1);
+ 
+ % Calcular los valores de R, L y C
+ R = 12 / Imax;
+ C = a2 / R;
+ L = a0 / C;
 % Obtener los coeficientes de la función de transferencia
-
-a2 = den(2);
-a1 = den(3);
-a0 = den(1);
-
-% Calcular los valores de R, L y C
-R = 12 / Imax;
-C = a2 / R;
-L = a0 / C;
-
+% b0 = num(2)
+% a2 = den(2);
+% a1 = den(3);
+% a0 = den(1);
+% 
+% % Calcular los valores de R, L y C
+% C = abs(b0);
+% R = a2 / C;
+% L = a0/ C;
 % Entonces puedo armar las matrices de los valores que calcule:
 A = [-R/L, -1/L; 1/C, 0];
 B = [1/L ; 0];
