@@ -1,3 +1,6 @@
+%% Sistemas de Control II 
+% Alumno: Andres Agustin Cesana
+% Tp N° 2 - ITEM 1 - 
 clc;clear all;close all;
 T=.5; At=1e-6; Kmax=T/At; t=linspace(0,T,Kmax);
 % Para los valores del item 4 de la tarea 1  
