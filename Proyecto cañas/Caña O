@@ -1,1 +1,126 @@
+// Caña O 
+// Valor de resistencia:
+#include <Servo.h> // Libreria de Servo.
 
+Servo myservo;     // Crea objeto Servo.
+Servo servoMotor;
+// Se incorpora un filtro simple que promedia las últimas 4 muestras.
+int audio_A1_0;    // Muestra actual.
+int audio_A1_1;    // Muestra de bucle anterior.
+int audio_A1_2;    // Muestra 2 bucles antes.
+int audio_A1_3;    // Muestra 3 bucles antes.
+int audio_A1_4;    // Muestra 4 bucles antes.
+int audio_A1_5;    // Muestra 5 bucles antes.
+
+int audio_A1;      // Variable para señal de audio con el filtro ya aplicado.
+
+int servo_control; // Variable para señal de control de servo. Se compone en función del valor de la señal de audio y del potenciómetro.
+int servo_offset;  // Variable para ángulo inicial del servo. Tener en cuenta que el nivel de señal no exceda el rango 0º-180º en ningún momento
+
+int pot_A0;        // Variable para lectura de potenciometro.   
+int escala;        // Variable para determinar factor de escala de sensibilidad del potenciometro. Definir entre 64-1024.
+// Definiendo escala = 64 se obtiene hasta 16 veces la señal de audio.
+// Definiendo escala = 128 se obtiene hasta 8 veces la señal de audio.
+// Definiendo escala = 256 se obtiene hasta 4 veces la señal de audio.
+// Definiendo escala = 512 se obtiene hasta 2 veces la señal de audio.
+// Definiendo escala = 1024 se mantiene la señal de audio tal cual está.
+// Observación: Evitar escalar la señal por fuera del rango dinámico 0-1023 que equivaldría a excederse de 0-180º
+// Ejemplo: Si la señal audio_A1 oscila entre 0,4V y 4,4V sera digitalizada entre 85 y 938.
+// Si en ese caso se define escala = 512 y el potenciómetro se lleva al extremo superior (pot_A0=1023), se estaría obteniendo la siguiente señal de control del servo:
+// servo_control =  ((938-512)*1023/512)+512 = 1363 > 1023 (fuera del rango dinamico)
+// Es decir, el valor de escala debera definirse en 1024 si la señal de audio original llega a valores cercanos al rango dinámico 0V-4.8V
+// Solamente deberá definirse escala < 1024 si la señal original tiene una amplitud reducida respecto del rango dinámico 0V-4.8V
+// (Por ejemplo si varía de 2V a 2,8V ya que se encuentra centrada en 2,4V)
+// Teniendo en cuenta que el valor de reposo es de 2,4V -> 0 -> 0º en caso de llevar el potenciometro al extremo inferior (pot_A0=0) el servo quedara en 90º 
+// independientemente del valor de escala y de la señal de audio.
+
+int pinServo = 6;
+int posicionAnterior = 90;
+int milis = 0;
+int lastMilis=0;
+
+void setup(){
+  servoMotor.attach(pinServo);
+  myservo.attach(9);  // Salida digital para control de servo en Pin digital 9.
+  Serial.begin(9600); // Inicializa comunicación serial para Serial Monitor y Plotter en 9600 baudios.
+  // Inicializa muestras anteriores en 511 (equivalente a 90º) para primeras 3 iteraciones del bucle.
+  audio_A1_1 = 511;
+  audio_A1_2 = 511;
+  audio_A1_3 = 511;
+  audio_A1_4 = 511;
+  audio_A1_5 = 511;
+  escala = 64;       // Se selecciona escala = 64 y se atenúa ajustando el potenciómetro entre 0 y 1023.
+  servo_offset = 0; // Offset a sumar respecto de 511, teniendo en cuenta que la señal de audio viene centrada en 511 equivalente a 90º.
+// Offset = -100 implica que la referencia inicial del servo sera menor a 90º, el equivalente a 511-100=411 en grados 411*(180/1023)=72º
+}
+
+void loop() {
+// REFERENCIAS DEL MONITOR SERIAL:
+/*
+  Serial.println(0);      // Imprimo el 0 para tener referencia de límite inferior de rango dinámico en Monitor Serial.
+  Serial.print(" ");
+  Serial.print(1023);     // Imprimo el 1023 para tener referencia de límite superior de rango dinámico en Monitor Serial.
+  Serial.print(" ");
+  */
+
+// LECTURAS ANALÓGICAS.
+  int pot_A0 = analogRead(0); // Lectura de la señal del potenciometro. Rango dinamico 0-4.8V Como se digitaliza con 10bits. Rango dinamico 0-1023.
+  int audio_A1_0 = analogRead(1);    // Lectura de la señal de audio. Rango dinamico 0-4.8V (0-1023). Centrada en 2.4V (511)
+
+// PROCESAMIENTO DE SEÑAL DE AUDIO:.
+// Espejado:
+  if(audio_A1_0<512){     // Ingresa a este bucle siempre que la lectura de la señal de audio sea menor al valor medio 511.
+    audio_A1_0 = 1022 - audio_A1_0;   // Se reemplaza el valor de la muestra por el valor "espejado" respecto de 511.
+    // Por ejemplo, si audio_A1_0 = 500, se reemplaza por 522. 
+    // De esa forma el servo se moverá unicamente en una dirección proporcionalmente al módulo de la señal de audio.
+  }
+// Se imprimen las muestras de la señal de audio ya espejadas.
+
+// Filtrado:
+// A continuación se aplica un filtro pasabajos sencillo que permite suavizar los movimientos del servo y simular mejor el habla.
+  audio_A1 = (audio_A1_0+audio_A1_1+audio_A1_2+audio_A1_3)/4;//+audio_A1_4)/5;//+audio_A1_5)/6;  // Promedia las últimas 4 muestras.
+// Se desplaza el historial de muestras, descartando la muestra más antigua.
+//  audio_A1_5 = audio_A1_4;
+//  audio_A1_4 = audio_A1_3;
+  audio_A1_3 = audio_A1_2;
+  audio_A1_2 = audio_A1_1;
+  audio_A1_1 = audio_A1_0;
+// En caso de desear mayor o menor filtrado se pueden agregar o sacar más muestras.
+// CONTROL DEL SERVO:
+// Aplicación de sensibilidad con potenciómetro:
+  int servo_control = round((audio_A1-511)*round(pot_A0/escala))+511; //  Ecuación para determinar la señal de control del servo.
+  // A la señal de audio espejada y filtrada se le quita el valor 511 para realizar una expansión proporcional al factor pot_A0/escala.
+  // Una vez "expandida" la señal se la vuelve a desplazar al valor 511 para que quede centrada. Si se desea cambiar el offset utilizar la
+  // variable servo_offset y no modificar el valor de 511 de esta ecuación.
+// Se imprime el resultado de aplicar la ecuación a la variable de control del servo.
+
+// Ajuste de posición de reposo del servo:
+  servo_control = servo_offset+servo_control;    // Se suma a la señal de control el valor en grados asignado a servo_offset en el "setup".
+  if(servo_control>1023){
+    servo_control = 1023;
+  }
+// Mapeo de valores:
+Serial.println(servo_control);
+int angulo = 0;
+angulo = map(servo_control, 540, 650, 55, 20);  // mapeo de valores de 0-1023 a valores 0º-180º en grados para que interprete el servo.
+  if(angulo>60){angulo=55;}
+  if(angulo<10){angulo=20;}
+// Ejecución de señal de control sobre el actuador:
+    Serial.println(angulo);
+  myservo.write(angulo);                  // Determina la posición del servo en función de la señal servo_control 0-180º.
+// RETARDO DEL BUCLE:
+  delay(20);  // Incorpora un retardo de 20ms para ajustar la posición del servo.
+// El retardo total de cada bucle se deberá ajustar mediante un proceso de prueba y error en función del servo y la carga aplicada en el eje.
+// Se recomienta tener en cuenta lo siguiente:
+// Cada "Serial.print" lleva un tiempo de ejecución. Si se decide sacarlos deberá incorporarse mayor retardo para obtener un mismo resultado.
+milis = millis();
+int retraso = random(500, 2000);
+ if(milis-lastMilis>retraso){
+    int posicion = random(50, 185);
+    servoMotor.write(posicion);  
+    lastMilis = milis;
+    posicionAnterior = posicion; 
+ }                // Esperar el tiempo aleatorio antes del siguiente movimiento
+  
+  
+}
